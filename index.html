@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="An Isosudoku puzzle configuration workspace." />
+    <title>Isosudoku — Maker & Solver</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="workspace">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Puzzle construction desk</p>
+          <h1>Isosudoku</h1>
+        </div>
+        <div class="status"><span></span> Configuration · 81 cells</div>
+      </header>
+
+      <section class="intro" aria-labelledby="board-title">
+        <div>
+          <p class="kicker">Hexagonal sudoku variant</p>
+          <h2 id="board-title">The blank Isosudoku board</h2>
+          <p>Write a single digit from 1 to 9 into each cell so that no digit can be repeated in marked areas and rows of three directions.</p>
+        </div>
+        <div class="legend" aria-label="Board legend">
+          <span><i class="fine"></i> cell boundary</span>
+          <span><i class="bold"></i> marked area</span>
+        </div>
+      </section>
+
+      <section class="board-shell" aria-label="Isosudoku board, cells 1 through 81">
+        <div id="board" role="img" aria-label="A labelled arrangement of 81 identical regular hexagons"></div>
+      </section>
+
+      <footer>
+        <p><b>Setup complete.</b> Each hexagon is numbered in reading order, from the top-left cell to the bottom-right cell.</p>
+        <p class="quiet">Maker and solver controls will be added when the puzzle rules are finalised.</p>
+      </footer>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
