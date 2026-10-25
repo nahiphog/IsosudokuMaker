@@ -147,6 +147,22 @@ const generationStatus = document.querySelector<HTMLParagraphElement>("#generati
 const gridComparison = document.querySelector<HTMLDivElement>("#grid-comparison");
 const dugPanel = document.querySelector<HTMLDivElement>("#dug-panel");
 const dugBoard = document.querySelector<HTMLDivElement>("#dug-board");
+const walkthrough = document.querySelector<HTMLElement>("#walkthrough");
+const walkthroughBoard = document.querySelector<HTMLDivElement>("#walkthrough-board");
+const walkthroughDescription = document.querySelector<HTMLParagraphElement>("#walkthrough-description");
+const walkthroughSlider = document.querySelector<HTMLInputElement>("#walkthrough-slider");
+const walkthroughCounter = document.querySelector<HTMLSpanElement>("#walkthrough-counter");
+const difficulty = document.querySelector<HTMLParagraphElement>("#difficulty");
+const walkFirst = document.querySelector<HTMLButtonElement>("#walk-first");
+const walkPrev = document.querySelector<HTMLButtonElement>("#walk-prev");
+const walkNext = document.querySelector<HTMLButtonElement>("#walk-next");
+const walkLast = document.querySelector<HTMLButtonElement>("#walk-last");
+let currentCompleted: number[] | null = null;
+let currentDug: number[] | null = null;
+
+type WalkthroughStep = { board: number[]; kind: string; description: string; placed?: number };
+let walkthroughSteps: WalkthroughStep[] = [];
+let walkthroughStep = 0;
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -268,6 +284,122 @@ function renderDugGrid(values: number[]): void {
   gridComparison?.classList.add("generated");
 }
 
+function gridString(values: number[]): string {
+  return values.map((value) => value || ".").join("");
+}
+
+function renderedSvg(values: number[], highlightCell?: number): SVGSVGElement {
+  const copy = svg.cloneNode(true) as SVGSVGElement;
+  copy.setAttribute("xmlns", NS);
+  copy.setAttribute("width", "1170");
+  copy.setAttribute("height", "735");
+  copy.querySelectorAll<SVGTextElement>("text").forEach((label, index) => {
+    label.textContent = values[index] ? String(values[index]) : "";
+    label.setAttribute("fill", "#263b33");
+    label.setAttribute("font-size", "26");
+    label.setAttribute("font-weight", "800");
+  });
+  copy.querySelectorAll<SVGPolygonElement>("polygon").forEach((polygon, index) => {
+    polygon.setAttribute("fill", index === highlightCell ? "#cce6d9" : "#fefefb");
+    polygon.setAttribute("stroke", "#24302e");
+    polygon.setAttribute("stroke-width", "1.45");
+  });
+  copy.querySelectorAll<SVGLineElement>("line").forEach((line) => {
+    line.setAttribute("stroke", "#17201e");
+  });
+  return copy;
+}
+
+async function copyGridImage(values: number[]): Promise<void> {
+  if (!navigator.clipboard || !window.ClipboardItem) throw new Error("Image clipboard is unavailable.");
+  const image = new Image();
+  const svgMarkup = new XMLSerializer().serializeToString(renderedSvg(values));
+  const objectUrl = URL.createObjectURL(new Blob([svgMarkup], { type: "image/svg+xml" }));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Grid image could not be rendered."));
+      image.src = objectUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = 1170;
+    canvas.height = 735;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is unavailable.");
+    context.fillStyle = "#fefefb";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Grid image could not be encoded.");
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function findWalkthroughMove(state: Uint8Array, solution: number[]): { cell: number; value: number; kind: string } | null {
+  for (let cell = 0; cell < 81; cell += 1) {
+    if (!state[cell] && popcount(candidateMask(state, cell)) === 1) {
+      return { cell, value: solution[cell], kind: "Naked Single" };
+    }
+  }
+  for (const unit of constraintUnits) {
+    if (unit.length !== 9) continue;
+    for (let digit = 1; digit <= 9; digit += 1) {
+      const bit = 1 << (digit - 1);
+      if (unit.some((cell) => state[cell] === digit)) continue;
+      const matches = unit.filter((cell) => !state[cell] && candidateMask(state, cell) & bit);
+      if (matches.length === 1) return { cell: matches[0], value: digit, kind: "Hidden Single" };
+    }
+  }
+  let bestCell = -1;
+  let bestCandidates = 10;
+  for (let cell = 0; cell < 81; cell += 1) {
+    if (state[cell]) continue;
+    const count = popcount(candidateMask(state, cell));
+    if (count < bestCandidates) { bestCell = cell; bestCandidates = count; }
+  }
+  return bestCell === -1 ? null : { cell: bestCell, value: solution[bestCell], kind: "Backtracking" };
+}
+
+function buildWalkthrough(puzzle: number[], solution: number[]): WalkthroughStep[] {
+  const state = Uint8Array.from(puzzle);
+  const steps: WalkthroughStep[] = [{ board: [...state], kind: "Starting grid", description: "Step 0: the dug puzzle and its given digits." }];
+  while (state.some((value) => value === 0)) {
+    const move = findWalkthroughMove(state, solution);
+    if (!move) throw new Error("Unable to construct a walkthrough.");
+    state[move.cell] = move.value;
+    const cellName = move.cell + 1;
+    const description = move.kind === "Backtracking"
+      ? `Backtracking: test the verified solution digit ${move.value} in cell ${cellName} after the available logical singles are exhausted.`
+      : `${move.kind}: place ${move.value} in cell ${cellName}.`;
+    steps.push({ board: [...state], kind: move.kind, description, placed: move.cell });
+  }
+  return steps;
+}
+
+function showWalkthroughStep(index: number): void {
+  if (!walkthroughSteps.length) return;
+  walkthroughStep = Math.max(0, Math.min(index, walkthroughSteps.length - 1));
+  const step = walkthroughSteps[walkthroughStep];
+  walkthroughBoard?.replaceChildren(renderedSvg(step.board, step.placed));
+  if (walkthroughDescription) walkthroughDescription.textContent = step.description;
+  if (walkthroughSlider) walkthroughSlider.value = String(walkthroughStep);
+  if (walkthroughCounter) walkthroughCounter.textContent = `Step ${walkthroughStep} of ${walkthroughSteps.length - 1}`;
+}
+
+function showWalkthrough(puzzle: number[], solution: number[]): void {
+  walkthroughSteps = buildWalkthrough(puzzle, solution);
+  const techniques = new Set(walkthroughSteps.map((step) => step.kind).filter((kind) => kind !== "Starting grid"));
+  const backtrackingSteps = walkthroughSteps.filter((step) => step.kind === "Backtracking").length;
+  const rating = walkthroughSteps.reduce((total, step) => total + (step.kind === "Naked Single" ? 10 : step.kind === "Hidden Single" ? 20 : step.kind === "Backtracking" ? 1000 : 0), 0);
+  const level = backtrackingSteps ? "Expert" : rating <= 300 ? "Beginner" : "Intermediate";
+  if (difficulty) difficulty.textContent = `Difficulty: ${level} · Rating: ${rating} · ${walkthroughSteps.length - 1} moves · ${[...techniques].join(", ")}`;
+  if (walkthroughSlider) walkthroughSlider.max = String(walkthroughSteps.length - 1);
+  if (walkthrough) walkthrough.hidden = false;
+  showWalkthroughStep(0);
+}
+
 function digPuzzle(completed: number[], method: "single" | "dual"): number[] {
   const dug = [...completed];
   const removalGroups = method === "dual"
@@ -292,6 +424,9 @@ function generatePuzzle(): void {
   const dug = digPuzzle(completed, method);
   renderValues(completed);
   renderDugGrid(dug);
+  currentCompleted = completed;
+  currentDug = dug;
+  showWalkthrough(dug, completed);
   const elapsed = performance.now() - startedAt;
   const givens = dug.filter(Boolean).length;
   if (generationStatus) generationStatus.textContent = `Completed grid and ${method === "dual" ? "dual-cell" : "single-cell"} dug grid generated in ${elapsed < 1 ? "< 1 ms" : `${elapsed.toFixed(1)} ms`}. Dug puzzle: ${givens} cells.`;
@@ -307,6 +442,26 @@ generatorButton?.addEventListener("click", () => {
       generatorButton.disabled = false;
       if (diggingMethod) diggingMethod.disabled = false;
       generatorButton.textContent = "Generate";
+    }
+  });
+});
+
+walkthroughSlider?.addEventListener("input", () => showWalkthroughStep(Number(walkthroughSlider.value)));
+walkFirst?.addEventListener("click", () => showWalkthroughStep(0));
+walkPrev?.addEventListener("click", () => showWalkthroughStep(walkthroughStep - 1));
+walkNext?.addEventListener("click", () => showWalkthroughStep(walkthroughStep + 1));
+walkLast?.addEventListener("click", () => showWalkthroughStep(walkthroughSteps.length - 1));
+
+document.querySelectorAll<HTMLButtonElement>("[data-copy-grid]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const values = button.dataset.copyGrid === "dug" ? currentDug : currentCompleted;
+    if (!values) return;
+    try {
+      if (button.dataset.copyFormat === "image") await copyGridImage(values);
+      else await navigator.clipboard.writeText(gridString(values));
+      if (generationStatus) generationStatus.textContent = `${button.dataset.copyGrid === "dug" ? "Dug puzzle" : "Completed grid"} copied as ${button.dataset.copyFormat === "image" ? "an image" : "a string"}.`;
+    } catch {
+      if (generationStatus) generationStatus.textContent = "Clipboard access was unavailable. Please try again in a supported browser.";
     }
   });
 });

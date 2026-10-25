@@ -24,17 +24,26 @@
 
       <section class="board-shell" aria-label="Isosudoku board, cells 1 through 81">
         <div id="grid-comparison" class="grid-comparison">
-          <div class="grid-panel">
-            <h2 class="grid-heading">Completed grid</h2>
-            <div id="board" role="group" aria-label="Completed Isosudoku board: click cells to select them"></div>
-          </div>
           <div id="dug-panel" class="grid-panel" hidden>
-            <h2 class="grid-heading">Dug grid</h2>
+            <div class="grid-topline"><h2 class="grid-heading">Dug puzzle</h2><div class="grid-actions"><button type="button" data-copy-grid="dug" data-copy-format="string">Copy string</button><button type="button" data-copy-grid="dug" data-copy-format="image">Copy image</button></div></div>
             <div id="dug-board" aria-label="Dug Isosudoku board"></div>
+          </div>
+          <div class="grid-panel">
+            <div class="grid-topline"><h2 class="grid-heading">Completed grid</h2><div class="grid-actions"><button type="button" data-copy-grid="completed" data-copy-format="string">Copy string</button><button type="button" data-copy-grid="completed" data-copy-format="image">Copy image</button></div></div>
+            <div id="board" role="group" aria-label="Completed Isosudoku board: click cells to select them"></div>
           </div>
         </div>
       </section>
       <p id="generation-status" class="generation-status" aria-live="polite">The grid is ready to generate.</p>
+
+      <section id="walkthrough" class="walkthrough" hidden aria-labelledby="walkthrough-title">
+        <h2 id="walkthrough-title">Solution walkthrough</h2>
+        <p id="difficulty" class="difficulty"></p>
+        <div id="walkthrough-board" class="walkthrough-board"></div>
+        <p id="walkthrough-description" class="walkthrough-description"></p>
+        <input id="walkthrough-slider" type="range" min="0" value="0" aria-label="Walkthrough step" />
+        <div class="walkthrough-controls"><button id="walk-first" type="button">First</button><button id="walk-prev" type="button">Previous</button><button id="walk-next" type="button">Next</button><button id="walk-last" type="button">Last</button><span id="walkthrough-counter"></span></div>
+      </section>
 
       <section class="selection-panel" aria-labelledby="selection-title">
         <div>
