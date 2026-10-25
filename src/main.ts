@@ -153,6 +153,7 @@ const walkthroughDescription = document.querySelector<HTMLParagraphElement>("#wa
 const walkthroughSlider = document.querySelector<HTMLInputElement>("#walkthrough-slider");
 const walkthroughCounter = document.querySelector<HTMLSpanElement>("#walkthrough-counter");
 const difficulty = document.querySelector<HTMLParagraphElement>("#difficulty");
+const walkthroughTechniques = document.querySelector<HTMLTableSectionElement>("#walkthrough-techniques");
 const walkFirst = document.querySelector<HTMLButtonElement>("#walk-first");
 const walkPrev = document.querySelector<HTMLButtonElement>("#walk-prev");
 const walkNext = document.querySelector<HTMLButtonElement>("#walk-next");
@@ -160,7 +161,7 @@ const walkLast = document.querySelector<HTMLButtonElement>("#walk-last");
 let currentCompleted: number[] | null = null;
 let currentDug: number[] | null = null;
 
-type WalkthroughStep = { board: number[]; kind: string; description: string; placed?: number };
+type WalkthroughStep = { board: number[]; notes: number[][]; removed: Set<string>; kind: string; description: string; placed?: number };
 let walkthroughSteps: WalkthroughStep[] = [];
 let walkthroughStep = 0;
 
@@ -265,20 +266,18 @@ function countSolutions(givens: number[], limit = 2): number {
   return found;
 }
 
-function renderValues(values: number[]): void {
+function renderValues(values: number[], givens = values): void {
   for (let cellNumber = 1; cellNumber <= 81; cellNumber += 1) {
     digitLabels.get(cellNumber)!.textContent = values[cellNumber - 1] ? String(values[cellNumber - 1]) : "";
+    digitLabels.get(cellNumber)!.setAttribute("fill", givens[cellNumber - 1] ? "#161d1a" : "#1769aa");
     const description = values[cellNumber - 1] ? `generated digit ${values[cellNumber - 1]}` : "empty";
     cells.get(cellNumber)?.setAttribute("aria-label", `Cell ${cellNumber}; ${description}; click to select`);
   }
 }
 
 function renderDugGrid(values: number[]): void {
-  const dugSvg = svg.cloneNode(true) as SVGSVGElement;
+  const dugSvg = renderedSvg(values, undefined, values);
   dugSvg.setAttribute("aria-hidden", "true");
-  dugSvg.querySelectorAll<SVGTextElement>("text").forEach((label, index) => {
-    label.textContent = values[index] ? String(values[index]) : "";
-  });
   dugBoard?.replaceChildren(dugSvg);
   if (dugPanel) dugPanel.hidden = false;
   gridComparison?.classList.add("generated");
@@ -288,14 +287,14 @@ function gridString(values: number[]): string {
   return values.map((value) => value || ".").join("");
 }
 
-function renderedSvg(values: number[], highlightCell?: number): SVGSVGElement {
+function renderedSvg(values: number[], highlightCell?: number, givens = values, notes?: number[][], removed = new Set<string>()): SVGSVGElement {
   const copy = svg.cloneNode(true) as SVGSVGElement;
   copy.setAttribute("xmlns", NS);
   copy.setAttribute("width", "1170");
   copy.setAttribute("height", "735");
   copy.querySelectorAll<SVGTextElement>("text").forEach((label, index) => {
     label.textContent = values[index] ? String(values[index]) : "";
-    label.setAttribute("fill", "#263b33");
+    label.setAttribute("fill", givens[index] ? "#161d1a" : "#1769aa");
     label.setAttribute("font-size", "26");
     label.setAttribute("font-weight", "800");
   });
@@ -307,13 +306,50 @@ function renderedSvg(values: number[], highlightCell?: number): SVGSVGElement {
   copy.querySelectorAll<SVGLineElement>("line").forEach((line) => {
     line.setAttribute("stroke", "#17201e");
   });
+  if (notes) {
+    notes.forEach((candidates, cell) => {
+      if (values[cell]) return;
+      const points = vertices.get(cell + 1);
+      if (!points) return;
+      const center = points.reduce((total, point) => ({ x: total.x + point.x, y: total.y + point.y }), { x: 0, y: 0 });
+      center.x /= points.length;
+      center.y /= points.length;
+      const displayed = new Set(candidates);
+      for (let digit = 1; digit <= 9; digit += 1) if (removed.has(`${cell}:${digit}`)) displayed.add(digit);
+      for (const digit of displayed) {
+        const position = digit - 1;
+        const column = position % 3 - 1;
+        const row = Math.floor(position / 3) - 1;
+        const x = center.x + column * 19;
+        const y = center.y + row * 17;
+        const crossed = removed.has(`${cell}:${digit}`);
+        const candidate = document.createElementNS(NS, "text");
+        candidate.setAttribute("x", x.toFixed(2));
+        candidate.setAttribute("y", y.toFixed(2));
+        candidate.setAttribute("fill", crossed ? "#bf3131" : "#1769aa");
+        candidate.setAttribute("font-size", "12");
+        candidate.setAttribute("font-weight", "700");
+        candidate.setAttribute("text-anchor", "middle");
+        candidate.setAttribute("dominant-baseline", "central");
+        candidate.textContent = String(digit);
+        copy.append(candidate);
+        if (crossed) {
+          const strike = document.createElementNS(NS, "line");
+          strike.setAttribute("x1", (x - 5).toFixed(2)); strike.setAttribute("x2", (x + 5).toFixed(2));
+          strike.setAttribute("y1", y.toFixed(2)); strike.setAttribute("y2", y.toFixed(2));
+          strike.setAttribute("stroke", "#bf3131"); strike.setAttribute("stroke-width", "1.7");
+          copy.append(strike);
+        }
+      }
+    });
+  }
   return copy;
 }
 
-async function copyGridImage(values: number[]): Promise<void> {
+async function copyGridImage(values: number[], givens = values): Promise<void> {
   if (!navigator.clipboard || !window.ClipboardItem) throw new Error("Image clipboard is unavailable.");
   const image = new Image();
-  const svgMarkup = new XMLSerializer().serializeToString(renderedSvg(values));
+  const svgMarkup = new XMLSerializer().serializeToString(renderedSvg(values, undefined, givens));
   const objectUrl = URL.createObjectURL(new Blob([svgMarkup], { type: "image/svg+xml" }));
   try {
     await new Promise<void>((resolve, reject) => {
@@ -362,18 +398,40 @@ function findWalkthroughMove(state: Uint8Array, solution: number[]): { cell: num
   return bestCell === -1 ? null : { cell: bestCell, value: solution[bestCell], kind: "Backtracking" };
 }
 
+function candidateNotes(state: Uint8Array): number[][] {
+  return Array.from({ length: 81 }, (_, cell) => {
+    if (state[cell]) return [];
+    const mask = candidateMask(state, cell);
+    return Array.from({ length: 9 }, (_, index) => index + 1).filter((digit) => mask & (1 << (digit - 1)));
+  });
+}
+
+function removedNotes(before: number[][], after: number[][], state: Uint8Array): Set<string> {
+  const removed = new Set<string>();
+  for (let cell = 0; cell < 81; cell += 1) {
+    if (state[cell]) continue;
+    for (const digit of before[cell]) if (!after[cell].includes(digit)) removed.add(`${cell}:${digit}`);
+  }
+  return removed;
+}
+
 function buildWalkthrough(puzzle: number[], solution: number[]): WalkthroughStep[] {
   const state = Uint8Array.from(puzzle);
-  const steps: WalkthroughStep[] = [{ board: [...state], kind: "Starting grid", description: "Step 0: the dug puzzle and its given digits." }];
+  let notes = candidateNotes(state);
+  const steps: WalkthroughStep[] = [{ board: [...state], notes, removed: new Set(), kind: "Snyder notation", description: "Step 0: Snyder notation is added in blue to every empty cell." }];
   while (state.some((value) => value === 0)) {
     const move = findWalkthroughMove(state, solution);
     if (!move) throw new Error("Unable to construct a walkthrough.");
+    const before = notes;
     state[move.cell] = move.value;
+    notes = candidateNotes(state);
+    const removed = removedNotes(before, notes, state);
     const cellName = move.cell + 1;
+    const removals = removed.size ? ` ${removed.size} neighbouring Snyder notation${removed.size === 1 ? " is" : "s are"} crossed out in red.` : " No neighbouring Snyder notations are removed in this step.";
     const description = move.kind === "Backtracking"
-      ? `Backtracking: test the verified solution digit ${move.value} in cell ${cellName} after the available logical singles are exhausted.`
-      : `${move.kind}: place ${move.value} in cell ${cellName}.`;
-    steps.push({ board: [...state], kind: move.kind, description, placed: move.cell });
+      ? `Backtracking: test the verified solution digit ${move.value} in cell ${cellName} after the available logical singles are exhausted.${removals}`
+      : `${move.kind}: place ${move.value} in cell ${cellName}.${removals}`;
+    steps.push({ board: [...state], notes, removed, kind: move.kind, description, placed: move.cell });
   }
   return steps;
 }
@@ -382,7 +440,8 @@ function showWalkthroughStep(index: number): void {
   if (!walkthroughSteps.length) return;
   walkthroughStep = Math.max(0, Math.min(index, walkthroughSteps.length - 1));
   const step = walkthroughSteps[walkthroughStep];
-  walkthroughBoard?.replaceChildren(renderedSvg(step.board, step.placed));
+  const givens = walkthroughSteps[0].board;
+  walkthroughBoard?.replaceChildren(renderedSvg(step.board, step.placed, givens, step.notes, step.removed));
   if (walkthroughDescription) walkthroughDescription.textContent = step.description;
   if (walkthroughSlider) walkthroughSlider.value = String(walkthroughStep);
   if (walkthroughCounter) walkthroughCounter.textContent = `Step ${walkthroughStep} of ${walkthroughSteps.length - 1}`;
@@ -390,11 +449,28 @@ function showWalkthroughStep(index: number): void {
 
 function showWalkthrough(puzzle: number[], solution: number[]): void {
   walkthroughSteps = buildWalkthrough(puzzle, solution);
-  const techniques = new Set(walkthroughSteps.map((step) => step.kind).filter((kind) => kind !== "Starting grid"));
+  const techniques = new Set(walkthroughSteps.map((step) => step.kind));
   const backtrackingSteps = walkthroughSteps.filter((step) => step.kind === "Backtracking").length;
   const rating = walkthroughSteps.reduce((total, step) => total + (step.kind === "Naked Single" ? 10 : step.kind === "Hidden Single" ? 20 : step.kind === "Backtracking" ? 1000 : 0), 0);
   const level = backtrackingSteps ? "Expert" : rating <= 300 ? "Beginner" : "Intermediate";
   if (difficulty) difficulty.textContent = `Difficulty: ${level} · Rating: ${rating} · ${walkthroughSteps.length - 1} moves · ${[...techniques].join(", ")}`;
+  if (walkthroughTechniques) {
+    const grouped = new Map<string, number[]>();
+    walkthroughSteps.forEach((step, index) => {
+      const indices = grouped.get(step.kind) ?? [];
+      indices.push(index);
+      grouped.set(step.kind, indices);
+    });
+    walkthroughTechniques.replaceChildren(...[...grouped.entries()].map(([technique, steps]) => {
+      const row = document.createElement("tr");
+      const techniqueCell = document.createElement("td");
+      const stepsCell = document.createElement("td");
+      techniqueCell.textContent = technique;
+      stepsCell.textContent = steps.join(", ");
+      row.append(techniqueCell, stepsCell);
+      return row;
+    }));
+  }
   if (walkthroughSlider) walkthroughSlider.max = String(walkthroughSteps.length - 1);
   if (walkthrough) walkthrough.hidden = false;
   showWalkthroughStep(0);
@@ -422,7 +498,7 @@ function generatePuzzle(): void {
   if (!isValidSolution(completed)) throw new Error("Generated board did not meet Isosudoku constraints.");
   const method = diggingMethod?.value === "dual" ? "dual" : "single";
   const dug = digPuzzle(completed, method);
-  renderValues(completed);
+  renderValues(completed, dug);
   renderDugGrid(dug);
   currentCompleted = completed;
   currentDug = dug;
@@ -457,7 +533,8 @@ document.querySelectorAll<HTMLButtonElement>("[data-copy-grid]").forEach((button
     const values = button.dataset.copyGrid === "dug" ? currentDug : currentCompleted;
     if (!values) return;
     try {
-      if (button.dataset.copyFormat === "image") await copyGridImage(values);
+      const givens = button.dataset.copyGrid === "dug" ? values : currentDug ?? values;
+      if (button.dataset.copyFormat === "image") await copyGridImage(values, givens);
       else await navigator.clipboard.writeText(gridString(values));
       if (generationStatus) generationStatus.textContent = `${button.dataset.copyGrid === "dug" ? "Dug puzzle" : "Completed grid"} copied as ${button.dataset.copyFormat === "image" ? "an image" : "a string"}.`;
     } catch {
