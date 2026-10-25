@@ -12,6 +12,21 @@ const width = Math.sqrt(3) * radius;
 const rowStep = radius * 1.5;
 const startX = 405;
 const startY = 58;
+const regions = [
+  [1, 2, 3, 10, 11, 12, 19, 20, 21],
+  [4, 5, 6, 13, 14, 15, 22, 23, 24],
+  [7, 8, 9, 16, 17, 18, 25, 26, 27],
+  [28, 29, 30, 37, 38, 39, 46, 47, 48],
+  [31, 32, 33, 40, 41, 42, 49, 50, 51],
+  [34, 35, 36, 43, 44, 45, 52, 53, 54],
+  [55, 56, 57, 64, 65, 66, 73, 74, 75],
+  [58, 59, 60, 67, 68, 69, 76, 77, 78],
+  [61, 62, 63, 70, 71, 72, 79, 80, 81],
+];
+
+type Point = { x: number; y: number };
+const cells = new Map<number, SVGPolygonElement>();
+const vertices = new Map<number, Point[]>();
 
 function corners(x: number, y: number): string {
   return Array.from({ length: 6 }, (_, i) => {
@@ -20,15 +35,58 @@ function corners(x: number, y: number): string {
   }).join(" ");
 }
 
+function hexVertices(x: number, y: number): Point[] {
+  return Array.from({ length: 6 }, (_, i) => {
+    const angle = (Math.PI / 180) * (60 * i - 30);
+    return { x: x + radius * Math.cos(angle), y: y + radius * Math.sin(angle) };
+  });
+}
+
+function pointKey(point: Point): string {
+  return `${Math.round(point.x * 100)},${Math.round(point.y * 100)}`;
+}
+
+function edgeKey(a: Point, b: Point): string {
+  return [pointKey(a), pointKey(b)].sort().join("|");
+}
+
+function drawBoundary(cellNumbers: number[], className: string): void {
+  const edgeCounts = new Map<string, { a: Point; b: Point; count: number }>();
+  for (const cellNumber of cellNumbers) {
+    const points = vertices.get(cellNumber);
+    if (!points) continue;
+    for (let i = 0; i < points.length; i += 1) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      const key = edgeKey(a, b);
+      const entry = edgeCounts.get(key);
+      if (entry) entry.count += 1;
+      else edgeCounts.set(key, { a, b, count: 1 });
+    }
+  }
+  for (const { a, b, count } of edgeCounts.values()) {
+    if (count !== 1) continue;
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", a.x.toFixed(2));
+    line.setAttribute("y1", a.y.toFixed(2));
+    line.setAttribute("x2", b.x.toFixed(2));
+    line.setAttribute("y2", b.y.toFixed(2));
+    line.setAttribute("class", className);
+    svg.append(line);
+  }
+}
+
 for (let row = 0; row < 9; row += 1) {
   for (let col = 0; col < 9; col += 1) {
     const index = row * 9 + col + 1;
     const x = startX + col * width - row * (width / 2);
     const y = startY + row * rowStep;
+    vertices.set(index, hexVertices(x, y));
     const polygon = document.createElementNS(NS, "polygon");
     polygon.setAttribute("points", corners(x, y));
     polygon.setAttribute("class", "cell");
     svg.append(polygon);
+    cells.set(index, polygon);
 
     const label = document.createElementNS(NS, "text");
     label.setAttribute("x", x.toFixed(2));
@@ -39,4 +97,41 @@ for (let row = 0; row < 9; row += 1) {
   }
 }
 
+for (const region of regions) drawBoundary(region, "region-border");
+drawBoundary(Array.from({ length: 81 }, (_, i) => i + 1), "figure-border");
+
 board.append(svg);
+
+const toggle = document.querySelector<HTMLButtonElement>("#toggle-region-picker");
+const picker = document.querySelector<HTMLDivElement>("#region-picker");
+const options = document.querySelector<HTMLDivElement>(".region-options");
+const clear = document.querySelector<HTMLButtonElement>("#clear-region");
+
+function selectRegion(regionIndex: number | null): void {
+  for (const [cellNumber, polygon] of cells) {
+    polygon.classList.toggle("highlighted", regionIndex !== null && regions[regionIndex].includes(cellNumber));
+  }
+  options?.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+    button.setAttribute("aria-pressed", String(regionIndex !== null && Number(button.dataset.region) === regionIndex + 1));
+  });
+}
+
+for (let i = 0; i < regions.length; i += 1) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = String(i + 1);
+  button.dataset.region = String(i + 1);
+  button.setAttribute("aria-label", `Highlight region ${i + 1}`);
+  button.setAttribute("aria-pressed", "false");
+  button.addEventListener("click", () => selectRegion(i));
+  options?.append(button);
+}
+
+toggle?.addEventListener("click", () => {
+  const isHidden = picker?.hidden ?? true;
+  if (picker) picker.hidden = !isHidden;
+  toggle.setAttribute("aria-expanded", String(isHidden));
+  toggle.textContent = isHidden ? "Hide region picker" : "Highlight a region";
+});
+
+clear?.addEventListener("click", () => selectRegion(null));
