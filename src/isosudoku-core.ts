@@ -1,0 +1,19 @@
+export const REGIONS = [[1,2,3,10,11,12,19,20,21],[4,5,6,13,14,15,22,23,24],[7,8,9,16,17,18,25,26,27],[28,29,30,37,38,39,46,47,48],[31,32,33,40,41,42,49,50,51],[34,35,36,43,44,45,52,53,54],[55,56,57,64,65,66,73,74,75],[58,59,60,67,68,69,76,77,78],[61,62,63,70,71,72,79,80,81]];
+export const ROWS: number[][] = [];
+for (let c = 1; c <= 9; c += 1) ROWS.push(Array.from({ length: 9 }, (_, r) => r * 9 + c));
+for (let r = 0; r < 9; r += 1) ROWS.push(Array.from({ length: 9 }, (_, c) => r * 9 + c + 1));
+for (let d = -5; d <= 5; d += 1) { const unit: number[] = []; for (let r = 0; r < 9; r += 1) { const c = r + d; if (c >= 0 && c < 9) unit.push(r * 9 + c + 1); } ROWS.push(unit); }
+
+const units = [...REGIONS, ...ROWS].map((unit) => unit.map((cell) => cell - 1));
+const peers = Array.from({ length: 81 }, () => new Set<number>());
+for (const unit of units) for (const a of unit) for (const b of unit) if (a !== b) peers[a].add(b);
+const all = 0x1ff;
+const base = "123456789895137246467829135374698521958241673216573498732915864641382957589764312".split("").map(Number);
+
+export function shuffle<T>(items: T[]): T[] { const copy = [...items]; for (let i = copy.length - 1; i > 0; i -= 1) { const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1); [copy[i], copy[j]] = [copy[j], copy[i]]; } return copy; }
+export function completedGrid(): number[] { const digits = shuffle([1,2,3,4,5,6,7,8,9]); return base.map((digit) => digits[digit - 1]); }
+function mask(values: Uint8Array, cell: number): number { let used = 0; for (const peer of peers[cell]) if (values[peer]) used |= 1 << (values[peer] - 1); return all & ~used; }
+function countBits(value: number): number { value -= (value >> 1) & 0x55555555; value = (value & 0x33333333) + ((value >> 2) & 0x33333333); return ((value + (value >> 4)) & 0x0f0f0f0f) * 0x01010101 >>> 24; }
+function propagate(values: Uint8Array): boolean { let changed = true; while (changed) { changed = false; for (let cell = 0; cell < 81; cell += 1) if (!values[cell]) { const candidates = mask(values, cell); if (!candidates) return false; if (!(candidates & (candidates - 1))) { values[cell] = 32 - Math.clz32(candidates); changed = true; } } for (const unit of units) { let used = 0; for (const cell of unit) if (values[cell]) { const bit = 1 << (values[cell] - 1); if (used & bit) return false; used |= bit; } if (unit.length !== 9) continue; for (let digit = 1; digit <= 9; digit += 1) { const bit = 1 << (digit - 1); if (used & bit) continue; let only = -1; for (const cell of unit) if (!values[cell] && (mask(values, cell) & bit)) { if (only !== -1) { only = -2; break; } only = cell; } if (only === -1) return false; if (only >= 0) { values[only] = digit; changed = true; } } } } return true; }
+export function countSolutions(givens: number[], limit = 2): number { let found = 0; const visit = (state: Uint8Array): void => { if (found >= limit || !propagate(state)) return; let best = -1, bestMask = 0, bestCount = 10; for (let cell = 0; cell < 81; cell += 1) if (!state[cell]) { const candidates = mask(state, cell), count = countBits(candidates); if (count < bestCount) { best = cell; bestMask = candidates; bestCount = count; if (count === 2) break; } } if (best === -1) { found += 1; return; } for (let digit = 1; digit <= 9 && found < limit; digit += 1) if (bestMask & (1 << (digit - 1))) { const next = new Uint8Array(state); next[best] = digit; visit(next); } }; visit(Uint8Array.from(givens)); return found; }
+export function dig(completed: number[], locked = new Set<number>()): number[] { const puzzle = [...completed]; for (const cell of shuffle(Array.from({ length: 81 }, (_, index) => index))) { if (locked.has(cell)) continue; const previous = puzzle[cell]; puzzle[cell] = 0; if (countSolutions(puzzle) !== 1) puzzle[cell] = previous; } return puzzle; }
