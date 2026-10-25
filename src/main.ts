@@ -269,7 +269,7 @@ function countSolutions(givens: number[], limit = 2): number {
 function renderValues(values: number[], givens = values): void {
   for (let cellNumber = 1; cellNumber <= 81; cellNumber += 1) {
     digitLabels.get(cellNumber)!.textContent = values[cellNumber - 1] ? String(values[cellNumber - 1]) : "";
-    digitLabels.get(cellNumber)!.setAttribute("fill", givens[cellNumber - 1] ? "#161d1a" : "#1769aa");
+    digitLabels.get(cellNumber)!.style.fill = givens[cellNumber - 1] ? "#161d1a" : "#1769aa";
     const description = values[cellNumber - 1] ? `generated digit ${values[cellNumber - 1]}` : "empty";
     cells.get(cellNumber)?.setAttribute("aria-label", `Cell ${cellNumber}; ${description}; click to select`);
   }
@@ -294,7 +294,7 @@ function renderedSvg(values: number[], highlightCell?: number, givens = values, 
   copy.setAttribute("height", "735");
   copy.querySelectorAll<SVGTextElement>("text").forEach((label, index) => {
     label.textContent = values[index] ? String(values[index]) : "";
-    label.setAttribute("fill", givens[index] ? "#161d1a" : "#1769aa");
+    label.style.fill = givens[index] ? "#161d1a" : "#1769aa";
     label.setAttribute("font-size", "26");
     label.setAttribute("font-weight", "800");
   });
