@@ -48,6 +48,12 @@ const rows = [
   [1, 11, 21, 31, 41, 51, 61, 71, 81], [2, 12, 22, 32, 42, 52, 62, 72],
   [3, 13, 23, 33, 43, 53, 63], [4, 14, 24, 34, 44, 54], [5, 15, 25, 35, 45], [6, 16, 26, 36],
 ];
+const constraintUnits = [...regions, ...rows].map((unit) => unit.map((cellNumber) => cellNumber - 1));
+const peerCells = Array.from({ length: 81 }, () => new Set<number>());
+for (const unit of constraintUnits) {
+  for (const cell of unit) for (const peer of unit) if (cell !== peer) peerCells[cell].add(peer);
+}
+const allCandidates = 0x1ff;
 
 type Point = { x: number; y: number };
 const cells = new Map<number, SVGPolygonElement>();
@@ -137,6 +143,9 @@ board.append(svg);
 
 const generatorButton = document.querySelector<HTMLButtonElement>("#generate-puzzle");
 const generationStatus = document.querySelector<HTMLParagraphElement>("#generation-status");
+const gridComparison = document.querySelector<HTMLDivElement>("#grid-comparison");
+const dugPanel = document.querySelector<HTMLDivElement>("#dug-panel");
+const dugBoard = document.querySelector<HTMLDivElement>("#dug-board");
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -148,21 +157,137 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function isValidSolution(values: number[]): boolean {
-  const units = [...regions, ...rows];
-  return units.every((unit) => new Set(unit.map((cellNumber) => values[cellNumber - 1])).size === unit.length);
+  return constraintUnits.every((unit) => new Set(unit.map((cell) => values[cell])).size === unit.length);
+}
+
+function candidateMask(values: Uint8Array, cell: number): number {
+  let used = 0;
+  for (const peer of peerCells[cell]) if (values[peer]) used |= 1 << (values[peer] - 1);
+  return allCandidates & ~used;
+}
+
+function popcount(mask: number): number {
+  mask -= (mask >> 1) & 0x55555555;
+  mask = (mask & 0x33333333) + ((mask >> 2) & 0x33333333);
+  return ((mask + (mask >> 4)) & 0x0f0f0f0f) * 0x01010101 >>> 24;
+}
+
+function propagateSingles(values: Uint8Array): boolean {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let cell = 0; cell < 81; cell += 1) {
+      if (values[cell]) continue;
+      const mask = candidateMask(values, cell);
+      if (mask === 0) return false;
+      if ((mask & (mask - 1)) === 0) {
+        values[cell] = 32 - Math.clz32(mask);
+        changed = true;
+      }
+    }
+    for (const unit of constraintUnits) {
+      let used = 0;
+      for (const cell of unit) {
+        const value = values[cell];
+        if (!value) continue;
+        const bit = 1 << (value - 1);
+        if (used & bit) return false;
+        used |= bit;
+      }
+      // Only nine-cell units must contain every digit, so hidden singles
+      // apply to regions and full-length rows but not to shorter diagonals.
+      if (unit.length !== 9) continue;
+      for (let digit = 1; digit <= 9; digit += 1) {
+        const bit = 1 << (digit - 1);
+        if (used & bit) continue;
+        let onlyCell = -1;
+        for (const cell of unit) {
+          if (!values[cell] && candidateMask(values, cell) & bit) {
+            if (onlyCell !== -1) { onlyCell = -2; break; }
+            onlyCell = cell;
+          }
+        }
+        if (onlyCell === -1) return false;
+        if (onlyCell >= 0) {
+          values[onlyCell] = digit;
+          changed = true;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+function countSolutions(givens: number[], limit = 2): number {
+  let found = 0;
+  const search = (state: Uint8Array): void => {
+    if (found >= limit || !propagateSingles(state)) return;
+    let bestCell = -1;
+    let bestMask = 0;
+    let bestCount = 10;
+    for (let cell = 0; cell < 81; cell += 1) {
+      if (state[cell]) continue;
+      const mask = candidateMask(state, cell);
+      const count = popcount(mask);
+      if (count < bestCount) {
+        bestCell = cell;
+        bestMask = mask;
+        bestCount = count;
+        if (count === 2) break;
+      }
+    }
+    if (bestCell === -1) { found += 1; return; }
+    for (let digit = 1; digit <= 9 && found < limit; digit += 1) {
+      if (!(bestMask & (1 << (digit - 1)))) continue;
+      const next = new Uint8Array(state);
+      next[bestCell] = digit;
+      search(next);
+    }
+  };
+  search(Uint8Array.from(givens));
+  return found;
+}
+
+function renderValues(values: number[]): void {
+  for (let cellNumber = 1; cellNumber <= 81; cellNumber += 1) {
+    digitLabels.get(cellNumber)!.textContent = values[cellNumber - 1] ? String(values[cellNumber - 1]) : "";
+    const description = values[cellNumber - 1] ? `generated digit ${values[cellNumber - 1]}` : "empty";
+    cells.get(cellNumber)?.setAttribute("aria-label", `Cell ${cellNumber}; ${description}; click to select`);
+  }
+}
+
+function renderDugGrid(values: number[]): void {
+  const dugSvg = svg.cloneNode(true) as SVGSVGElement;
+  dugSvg.setAttribute("aria-hidden", "true");
+  dugSvg.querySelectorAll<SVGTextElement>("text").forEach((label, index) => {
+    label.textContent = values[index] ? String(values[index]) : "";
+  });
+  dugBoard?.replaceChildren(dugSvg);
+  if (dugPanel) dugPanel.hidden = false;
+  gridComparison?.classList.add("generated");
+}
+
+function digPuzzle(completed: number[]): number[] {
+  const dug = [...completed];
+  for (const cell of shuffle(Array.from({ length: 81 }, (_, index) => index))) {
+    const previous = dug[cell];
+    dug[cell] = 0;
+    if (countSolutions(dug) !== 1) dug[cell] = previous;
+  }
+  return dug;
 }
 
 function generatePuzzle(): void {
   const startedAt = performance.now();
   const permutation = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  const generated = baseSolution.map((digit) => permutation[digit - 1]);
-  if (!isValidSolution(generated)) throw new Error("Generated board did not meet Isosudoku constraints.");
-  for (let cellNumber = 1; cellNumber <= 81; cellNumber += 1) {
-    digitLabels.get(cellNumber)!.textContent = String(generated[cellNumber - 1]);
-    cells.get(cellNumber)?.setAttribute("aria-label", `Cell ${cellNumber}; generated digit ${generated[cellNumber - 1]}; click to select`);
-  }
+  const completed = baseSolution.map((digit) => permutation[digit - 1]);
+  if (!isValidSolution(completed)) throw new Error("Generated board did not meet Isosudoku constraints.");
+  const dug = digPuzzle(completed);
+  renderValues(completed);
+  renderDugGrid(dug);
   const elapsed = performance.now() - startedAt;
-  if (generationStatus) generationStatus.textContent = `Completed valid Isosudoku generated in ${elapsed < 1 ? "< 1 ms" : `${elapsed.toFixed(1)} ms`}.`;
+  const givens = dug.filter(Boolean).length;
+  if (generationStatus) generationStatus.textContent = `Completed grid and dug grid generated in ${elapsed < 1 ? "< 1 ms" : `${elapsed.toFixed(1)} ms`}. Dug puzzle: ${givens} cells.`;
 }
 
 generatorButton?.addEventListener("click", () => {

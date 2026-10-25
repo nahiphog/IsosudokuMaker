@@ -16,7 +16,16 @@
       <div class="generate-bar"><button id="generate-puzzle" type="button">Generate</button></div>
 
       <section class="board-shell" aria-label="Isosudoku board, cells 1 through 81">
-        <div id="board" role="group" aria-label="Isosudoku board: click cells to select them"></div>
+        <div id="grid-comparison" class="grid-comparison">
+          <div class="grid-panel">
+            <h2 class="grid-heading">Completed grid</h2>
+            <div id="board" role="group" aria-label="Completed Isosudoku board: click cells to select them"></div>
+          </div>
+          <div id="dug-panel" class="grid-panel" hidden>
+            <h2 class="grid-heading">Dug grid</h2>
+            <div id="dug-board" aria-label="Dug Isosudoku board"></div>
+          </div>
+        </div>
       </section>
       <p id="generation-status" class="generation-status" aria-live="polite">The grid is ready to generate.</p>
 
