@@ -1,3 +1,4 @@
+import "../site-header.js";
 import { completedGrid, dig, REGIONS } from "../isosudoku-core.js";
 
 const NS = "http://www.w3.org/2000/svg";

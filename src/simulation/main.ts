@@ -1,3 +1,4 @@
+import "../site-header.js";
 import { completedGrid, dig } from "../isosudoku-core.js";
 
 const runs = document.querySelector<HTMLSelectElement>("#runs")!;

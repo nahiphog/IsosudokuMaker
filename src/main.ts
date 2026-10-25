@@ -1,3 +1,5 @@
+import "./site-header.js";
+
 const NS = "http://www.w3.org/2000/svg";
 const board = document.querySelector<HTMLDivElement>("#board");
 
