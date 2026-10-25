@@ -142,6 +142,7 @@ drawBoundary(Array.from({ length: 81 }, (_, i) => i + 1), "figure-border");
 board.append(svg);
 
 const generatorButton = document.querySelector<HTMLButtonElement>("#generate-puzzle");
+const diggingMethod = document.querySelector<HTMLSelectElement>("#digging-method");
 const generationStatus = document.querySelector<HTMLParagraphElement>("#generation-status");
 const gridComparison = document.querySelector<HTMLDivElement>("#grid-comparison");
 const dugPanel = document.querySelector<HTMLDivElement>("#dug-panel");
@@ -267,12 +268,17 @@ function renderDugGrid(values: number[]): void {
   gridComparison?.classList.add("generated");
 }
 
-function digPuzzle(completed: number[]): number[] {
+function digPuzzle(completed: number[], method: "single" | "dual"): number[] {
   const dug = [...completed];
-  for (const cell of shuffle(Array.from({ length: 81 }, (_, index) => index))) {
-    const previous = dug[cell];
-    dug[cell] = 0;
-    if (countSolutions(dug) !== 1) dug[cell] = previous;
+  const removalGroups = method === "dual"
+    ? Array.from({ length: 40 }, (_, index) => [index, 80 - index])
+    : Array.from({ length: 81 }, (_, index) => [index]);
+  for (const group of shuffle(removalGroups)) {
+    const previous = group.map((cell) => dug[cell]);
+    for (const cell of group) dug[cell] = 0;
+    if (countSolutions(dug) !== 1) {
+      group.forEach((cell, index) => { dug[cell] = previous[index]; });
+    }
   }
   return dug;
 }
@@ -282,21 +288,24 @@ function generatePuzzle(): void {
   const permutation = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   const completed = baseSolution.map((digit) => permutation[digit - 1]);
   if (!isValidSolution(completed)) throw new Error("Generated board did not meet Isosudoku constraints.");
-  const dug = digPuzzle(completed);
+  const method = diggingMethod?.value === "dual" ? "dual" : "single";
+  const dug = digPuzzle(completed, method);
   renderValues(completed);
   renderDugGrid(dug);
   const elapsed = performance.now() - startedAt;
   const givens = dug.filter(Boolean).length;
-  if (generationStatus) generationStatus.textContent = `Completed grid and dug grid generated in ${elapsed < 1 ? "< 1 ms" : `${elapsed.toFixed(1)} ms`}. Dug puzzle: ${givens} cells.`;
+  if (generationStatus) generationStatus.textContent = `Completed grid and ${method === "dual" ? "dual-cell" : "single-cell"} dug grid generated in ${elapsed < 1 ? "< 1 ms" : `${elapsed.toFixed(1)} ms`}. Dug puzzle: ${givens} cells.`;
 }
 
 generatorButton?.addEventListener("click", () => {
   generatorButton.disabled = true;
+  if (diggingMethod) diggingMethod.disabled = true;
   generatorButton.textContent = "Generating…";
   requestAnimationFrame(() => {
     try { generatePuzzle(); }
     finally {
       generatorButton.disabled = false;
+      if (diggingMethod) diggingMethod.disabled = false;
       generatorButton.textContent = "Generate";
     }
   });

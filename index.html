@@ -13,7 +13,14 @@
         <h1>Isosudoku</h1>
       </header>
 
-      <div class="generate-bar"><button id="generate-puzzle" type="button">Generate</button></div>
+      <div class="generate-bar">
+        <label class="sr-only" for="digging-method">Digging method</label>
+        <select id="digging-method">
+          <option value="single">Single-cell digging</option>
+          <option value="dual">Dual-cell digging</option>
+        </select>
+        <button id="generate-puzzle" type="button">Generate</button>
+      </div>
 
       <section class="board-shell" aria-label="Isosudoku board, cells 1 through 81">
         <div id="grid-comparison" class="grid-comparison">
