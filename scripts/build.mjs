@@ -9,4 +9,6 @@ await mkdir("dist", { recursive: true });
 await Promise.all([
   cp("index.html", "dist/index.html"),
   cp("style.css", "dist/style.css"),
+  cp("LICENSE", "dist/LICENSE"),
+  cp("THIRD_PARTY_NOTICES.md", "dist/THIRD_PARTY_NOTICES.md"),
 ]);
