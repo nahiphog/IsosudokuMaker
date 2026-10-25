@@ -1,19 +1,21 @@
 import { completedGrid, dig } from "../isosudoku-core.js";
 
 const runs = document.querySelector<HTMLSelectElement>("#runs")!;
+const method = document.querySelector<HTMLSelectElement>("#method")!;
 const run = document.querySelector<HTMLButtonElement>("#run")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
 const summary = document.querySelector<HTMLDivElement>("#summary")!;
 const table = document.querySelector<HTMLTableElement>(".results-table")!;
 const results = document.querySelector<HTMLTableSectionElement>("#results")!;
+for (let count = 1; count <= 30; count += 1) { const option = document.createElement("option"); option.value = String(count); option.textContent = String(count); if (count === 1) option.selected = true; runs.append(option); }
 
 run.addEventListener("click", () => {
   const total = Number(runs.value);
   const counts: number[] = [];
-  run.disabled = true; runs.disabled = true; results.replaceChildren(); table.hidden = false; summary.hidden = true;
+  run.disabled = true; runs.disabled = true; method.disabled = true; results.replaceChildren(); table.hidden = false; summary.hidden = true;
   const next = () => {
     const started = performance.now();
-    const puzzle = dig(completedGrid());
+    const puzzle = dig(completedGrid(), new Set(), method.value === "dual" ? "dual" : "single");
     const count = puzzle.filter(Boolean).length;
     counts.push(count);
     const row = document.createElement("tr");
@@ -24,7 +26,7 @@ run.addEventListener("click", () => {
     else {
       const min = Math.min(...counts), max = Math.max(...counts), average = counts.reduce((sum, value) => sum + value, 0) / counts.length;
       summary.textContent = `Final clue count — average ${average.toFixed(1)}, minimum ${min}, maximum ${max}.`;
-      summary.hidden = false; run.disabled = false; runs.disabled = false;
+      summary.hidden = false; run.disabled = false; runs.disabled = false; method.disabled = false;
     }
   };
   next();
