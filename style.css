@@ -13,6 +13,6 @@ h1, h2, p { margin-top: 0; } h1 { font-size: clamp(2.4rem, 6vw, 4.5rem); line-he
 .legend span { display: flex; align-items: center; gap: 7px; } .legend i { display: block; width: 24px; height: 0; border-top: 1.5px solid #273230; } .legend i.bold { border-width: 4px; }
 .board-shell { overflow: hidden; border: 1px solid #d2d9d0; background: #fdfdf9; box-shadow: 0 14px 38px #20322a12; padding: clamp(12px, 3vw, 34px); }
 #board { width: 100%; } svg { display: block; width: 100%; height: auto; min-width: 690px; }
-.cell { fill: #fefefb; stroke: #24302e; stroke-width: 1.45; vector-effect: non-scaling-stroke; } .cell.region-edge { stroke-width: 4.6; } .label { fill: #52615c; font-size: 18px; font-weight: 700; text-anchor: middle; dominant-baseline: central; user-select: none; }
+.cell { fill: #fefefb; stroke: #24302e; stroke-width: 1.45; vector-effect: non-scaling-stroke; } .label { fill: #52615c; font-size: 18px; font-weight: 700; text-anchor: middle; dominant-baseline: central; user-select: none; }
 footer { display: flex; justify-content: space-between; gap: 24px; color: #53645e; padding: 22px 2px 0; font-size: .85rem; } footer p { margin: 0; } footer b { color: #253833; } .quiet { color: #76857f; text-align: right; }
 @media (max-width: 720px) { .workspace { width: min(100% - 24px, 1240px); padding-top: 26px; } .masthead, .intro, footer { display: block; } .status { margin-top: 18px; } .legend { justify-content: flex-start; margin-top: 20px; } .board-shell { overflow-x: auto; } .quiet { margin-top: 8px; text-align: left; } }

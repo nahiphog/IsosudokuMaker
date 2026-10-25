@@ -20,11 +20,6 @@ function corners(x: number, y: number): string {
   }).join(" ");
 }
 
-function hasRegionEdge(row: number, col: number): boolean {
-  // The nine outlined 3 × 3 rhombi form the marked areas.
-  return row % 3 === 0 || col % 3 === 0 || row === 8 || col === 8;
-}
-
 for (let row = 0; row < 9; row += 1) {
   for (let col = 0; col < 9; col += 1) {
     const index = row * 9 + col + 1;
@@ -32,7 +27,7 @@ for (let row = 0; row < 9; row += 1) {
     const y = startY + row * rowStep;
     const polygon = document.createElementNS(NS, "polygon");
     polygon.setAttribute("points", corners(x, y));
-    polygon.setAttribute("class", `cell${hasRegionEdge(row, col) ? " region-edge" : ""}`);
+    polygon.setAttribute("class", "cell");
     svg.append(polygon);
 
     const label = document.createElementNS(NS, "text");
