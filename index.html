@@ -30,7 +30,16 @@
       </section>
 
       <section class="board-shell" aria-label="Isosudoku board, cells 1 through 81">
-        <div id="board" role="img" aria-label="A labelled arrangement of 81 identical regular hexagons"></div>
+        <div id="board" role="group" aria-label="Isosudoku board: click cells to select them"></div>
+      </section>
+
+      <section class="selection-panel" aria-labelledby="selection-title">
+        <div>
+          <p class="kicker">Cell selection</p>
+          <h2 id="selection-title">Selected cell labels</h2>
+          <p id="selected-cells" aria-live="polite">No cells selected.</p>
+        </div>
+        <button id="clear-cell-selection" class="secondary" type="button" disabled>Clear selected cells</button>
       </section>
 
       <section class="region-tools" aria-labelledby="region-tools-title">

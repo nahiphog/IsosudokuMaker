@@ -5,7 +5,8 @@ if (!board) throw new Error("Board container is missing.");
 
 const svg = document.createElementNS(NS, "svg");
 svg.setAttribute("viewBox", "0 0 1170 735");
-svg.setAttribute("aria-hidden", "true");
+svg.setAttribute("role", "group");
+svg.setAttribute("aria-label", "81 numbered Isosudoku cells");
 
 const radius = 51;
 const width = Math.sqrt(3) * radius;
@@ -27,6 +28,7 @@ const regions = [
 type Point = { x: number; y: number };
 const cells = new Map<number, SVGPolygonElement>();
 const vertices = new Map<number, Point[]>();
+const selectedCellNumbers = new Set<number>();
 
 function corners(x: number, y: number): string {
   return Array.from({ length: 6 }, (_, i) => {
@@ -85,6 +87,10 @@ for (let row = 0; row < 9; row += 1) {
     const polygon = document.createElementNS(NS, "polygon");
     polygon.setAttribute("points", corners(x, y));
     polygon.setAttribute("class", "cell");
+    polygon.setAttribute("role", "button");
+    polygon.setAttribute("tabindex", "0");
+    polygon.setAttribute("aria-label", `Cell ${index}; click to select`);
+    polygon.setAttribute("aria-pressed", "false");
     svg.append(polygon);
     cells.set(index, polygon);
 
@@ -101,6 +107,49 @@ for (const region of regions) drawBoundary(region, "region-border");
 drawBoundary(Array.from({ length: 81 }, (_, i) => i + 1), "figure-border");
 
 board.append(svg);
+
+const selectedCellsReadout = document.querySelector<HTMLParagraphElement>("#selected-cells");
+const clearCellSelection = document.querySelector<HTMLButtonElement>("#clear-cell-selection");
+
+function updateCellSelection(): void {
+  const selections = [...selectedCellNumbers].sort((a, b) => a - b);
+  if (selectedCellsReadout) {
+    selectedCellsReadout.textContent = selections.length === 0
+      ? "No cells selected."
+      : `Selected cells (${selections.length}): ${selections.join(", ")}`;
+  }
+  if (clearCellSelection) clearCellSelection.disabled = selections.length === 0;
+}
+
+function toggleCellSelection(cellNumber: number): void {
+  const polygon = cells.get(cellNumber);
+  if (!polygon) return;
+  if (selectedCellNumbers.has(cellNumber)) selectedCellNumbers.delete(cellNumber);
+  else selectedCellNumbers.add(cellNumber);
+  polygon.classList.toggle("selected", selectedCellNumbers.has(cellNumber));
+  polygon.setAttribute("aria-pressed", String(selectedCellNumbers.has(cellNumber)));
+  updateCellSelection();
+}
+
+for (const [cellNumber, polygon] of cells) {
+  polygon.addEventListener("click", () => toggleCellSelection(cellNumber));
+  polygon.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleCellSelection(cellNumber);
+    }
+  });
+}
+
+clearCellSelection?.addEventListener("click", () => {
+  for (const cellNumber of selectedCellNumbers) {
+    const polygon = cells.get(cellNumber);
+    polygon?.classList.remove("selected");
+    polygon?.setAttribute("aria-pressed", "false");
+  }
+  selectedCellNumbers.clear();
+  updateCellSelection();
+});
 
 const toggle = document.querySelector<HTMLButtonElement>("#toggle-region-picker");
 const picker = document.querySelector<HTMLDivElement>("#region-picker");
