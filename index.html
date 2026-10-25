@@ -44,14 +44,17 @@
 
       <section class="region-tools" aria-labelledby="region-tools-title">
         <div>
-          <p class="kicker">Inspect regions</p>
-          <h2 id="region-tools-title">Highlight a marked area</h2>
+          <p class="kicker">Inspect constraints</p>
+          <h2 id="region-tools-title">Highlight a row or region</h2>
         </div>
         <div class="region-actions">
-          <button id="toggle-region-picker" type="button" aria-expanded="false" aria-controls="region-picker">Highlight a region</button>
+          <button id="toggle-region-picker" type="button" aria-expanded="false" aria-controls="region-picker">Highlight a row / region</button>
           <div id="region-picker" hidden>
-            <p>Choose a region to highlight its nine cells.</p>
+            <p>Choose a region or row to highlight all of its cells.</p>
+            <p class="picker-label">Regions</p>
             <div class="region-options" role="group" aria-label="Regions 1 through 9"></div>
+            <p class="picker-label">Rows</p>
+            <div class="row-options" role="group" aria-label="Rows 1 through 29"></div>
             <button id="clear-region" class="secondary" type="button">Clear highlight</button>
           </div>
         </div>

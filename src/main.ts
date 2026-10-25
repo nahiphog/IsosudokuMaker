@@ -24,6 +24,30 @@ const regions = [
   [58, 59, 60, 67, 68, 69, 76, 77, 78],
   [61, 62, 63, 70, 71, 72, 79, 80, 81],
 ];
+const rows = [
+  [1, 10, 19, 28, 37, 46, 55, 64, 73],
+  [2, 11, 20, 29, 38, 47, 56, 65, 74],
+  [3, 12, 21, 30, 39, 48, 57, 66, 75],
+  [4, 13, 22, 31, 40, 49, 58, 67, 76],
+  [5, 14, 23, 32, 41, 50, 59, 68, 77],
+  [6, 15, 24, 33, 42, 51, 60, 69, 78],
+  [7, 16, 25, 34, 43, 52, 61, 70, 79],
+  [8, 17, 26, 35, 44, 53, 62, 71, 80],
+  [9, 18, 27, 36, 45, 54, 63, 72, 81],
+  [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  [10, 11, 12, 13, 14, 15, 16, 17, 18],
+  [19, 20, 21, 22, 23, 24, 25, 26, 27],
+  [28, 29, 30, 31, 32, 33, 34, 35, 36],
+  [37, 38, 39, 40, 41, 42, 43, 44, 45],
+  [46, 47, 48, 49, 50, 51, 52, 53, 54],
+  [55, 56, 57, 58, 59, 60, 61, 62, 63],
+  [64, 65, 66, 67, 68, 69, 70, 71, 72],
+  [73, 74, 75, 76, 77, 78, 79, 80, 81],
+  [46, 56, 66, 76], [37, 47, 57, 67, 77], [28, 38, 48, 58, 68, 78],
+  [19, 29, 39, 49, 59, 69, 79], [10, 20, 30, 40, 50, 60, 70, 80],
+  [1, 11, 21, 31, 41, 51, 61, 71, 81], [2, 12, 22, 32, 42, 52, 62, 72],
+  [3, 13, 23, 33, 43, 53, 63], [4, 14, 24, 34, 44, 54], [5, 15, 25, 35, 45], [6, 16, 26, 36],
+];
 
 type Point = { x: number; y: number };
 const cells = new Map<number, SVGPolygonElement>();
@@ -153,15 +177,19 @@ clearCellSelection?.addEventListener("click", () => {
 
 const toggle = document.querySelector<HTMLButtonElement>("#toggle-region-picker");
 const picker = document.querySelector<HTMLDivElement>("#region-picker");
-const options = document.querySelector<HTMLDivElement>(".region-options");
+const regionOptions = document.querySelector<HTMLDivElement>(".region-options");
+const rowOptions = document.querySelector<HTMLDivElement>(".row-options");
 const clear = document.querySelector<HTMLButtonElement>("#clear-region");
 
-function selectRegion(regionIndex: number | null): void {
+function selectHighlight(kind: "region" | "row" | null, index: number | null): void {
+  const highlightedCells = kind === "region" && index !== null ? regions[index]
+    : kind === "row" && index !== null ? rows[index]
+    : [];
   for (const [cellNumber, polygon] of cells) {
-    polygon.classList.toggle("highlighted", regionIndex !== null && regions[regionIndex].includes(cellNumber));
+    polygon.classList.toggle("highlighted", highlightedCells.includes(cellNumber));
   }
-  options?.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-    button.setAttribute("aria-pressed", String(regionIndex !== null && Number(button.dataset.region) === regionIndex + 1));
+  document.querySelectorAll<HTMLButtonElement>("[data-highlight-kind]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(kind === button.dataset.highlightKind && index !== null && Number(button.dataset.highlightIndex) === index));
   });
 }
 
@@ -169,18 +197,31 @@ for (let i = 0; i < regions.length; i += 1) {
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = String(i + 1);
-  button.dataset.region = String(i + 1);
+  button.dataset.highlightKind = "region";
+  button.dataset.highlightIndex = String(i);
   button.setAttribute("aria-label", `Highlight region ${i + 1}`);
   button.setAttribute("aria-pressed", "false");
-  button.addEventListener("click", () => selectRegion(i));
-  options?.append(button);
+  button.addEventListener("click", () => selectHighlight("region", i));
+  regionOptions?.append(button);
+}
+
+for (let i = 0; i < rows.length; i += 1) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = String(i + 1);
+  button.dataset.highlightKind = "row";
+  button.dataset.highlightIndex = String(i);
+  button.setAttribute("aria-label", `Highlight row ${i + 1}`);
+  button.setAttribute("aria-pressed", "false");
+  button.addEventListener("click", () => selectHighlight("row", i));
+  rowOptions?.append(button);
 }
 
 toggle?.addEventListener("click", () => {
   const isHidden = picker?.hidden ?? true;
   if (picker) picker.hidden = !isHidden;
   toggle.setAttribute("aria-expanded", String(isHidden));
-  toggle.textContent = isHidden ? "Hide region picker" : "Highlight a region";
+  toggle.textContent = isHidden ? "Hide row / region picker" : "Highlight a row / region";
 });
 
-clear?.addEventListener("click", () => selectRegion(null));
+clear?.addEventListener("click", () => selectHighlight(null, null));
