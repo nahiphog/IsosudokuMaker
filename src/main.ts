@@ -52,7 +52,9 @@ const rows = [
 type Point = { x: number; y: number };
 const cells = new Map<number, SVGPolygonElement>();
 const vertices = new Map<number, Point[]>();
+const digitLabels = new Map<number, SVGTextElement>();
 const selectedCellNumbers = new Set<number>();
+const baseSolution = "123456789895137246467829135374698521958241673216573498732915864641382957589764312".split("").map(Number);
 
 function corners(x: number, y: number): string {
   return Array.from({ length: 6 }, (_, i) => {
@@ -122,8 +124,9 @@ for (let row = 0; row < 9; row += 1) {
     label.setAttribute("x", x.toFixed(2));
     label.setAttribute("y", y.toFixed(2));
     label.setAttribute("class", "label");
-    label.textContent = String(index);
+    label.textContent = "";
     svg.append(label);
+    digitLabels.set(index, label);
   }
 }
 
@@ -131,6 +134,48 @@ for (const region of regions) drawBoundary(region, "region-border");
 drawBoundary(Array.from({ length: 81 }, (_, i) => i + 1), "figure-border");
 
 board.append(svg);
+
+const generatorButton = document.querySelector<HTMLButtonElement>("#generate-puzzle");
+const generationStatus = document.querySelector<HTMLParagraphElement>("#generation-status");
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const swapWith = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [copy[i], copy[swapWith]] = [copy[swapWith], copy[i]];
+  }
+  return copy;
+}
+
+function isValidSolution(values: number[]): boolean {
+  const units = [...regions, ...rows];
+  return units.every((unit) => new Set(unit.map((cellNumber) => values[cellNumber - 1])).size === unit.length);
+}
+
+function generatePuzzle(): void {
+  const startedAt = performance.now();
+  const permutation = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const generated = baseSolution.map((digit) => permutation[digit - 1]);
+  if (!isValidSolution(generated)) throw new Error("Generated board did not meet Isosudoku constraints.");
+  for (let cellNumber = 1; cellNumber <= 81; cellNumber += 1) {
+    digitLabels.get(cellNumber)!.textContent = String(generated[cellNumber - 1]);
+    cells.get(cellNumber)?.setAttribute("aria-label", `Cell ${cellNumber}; generated digit ${generated[cellNumber - 1]}; click to select`);
+  }
+  const elapsed = performance.now() - startedAt;
+  if (generationStatus) generationStatus.textContent = `Completed valid Isosudoku generated in ${elapsed < 1 ? "< 1 ms" : `${elapsed.toFixed(1)} ms`}.`;
+}
+
+generatorButton?.addEventListener("click", () => {
+  generatorButton.disabled = true;
+  generatorButton.textContent = "Generating…";
+  requestAnimationFrame(() => {
+    try { generatePuzzle(); }
+    finally {
+      generatorButton.disabled = false;
+      generatorButton.textContent = "Generate";
+    }
+  });
+});
 
 const selectedCellsReadout = document.querySelector<HTMLParagraphElement>("#selected-cells");
 const clearCellSelection = document.querySelector<HTMLButtonElement>("#clear-cell-selection");

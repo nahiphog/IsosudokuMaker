@@ -42,6 +42,15 @@
         <button id="clear-cell-selection" class="secondary" type="button" disabled>Clear selected cells</button>
       </section>
 
+      <section class="generator-panel" aria-labelledby="generator-title">
+        <div>
+          <p class="kicker">Puzzle generator</p>
+          <h2 id="generator-title">Create a completed Isosudoku</h2>
+          <p id="generation-status" aria-live="polite">The grid is ready to generate.</p>
+        </div>
+        <button id="generate-puzzle" type="button">Generate</button>
+      </section>
+
       <section class="region-tools" aria-labelledby="region-tools-title">
         <div>
           <p class="kicker">Inspect constraints</p>
@@ -61,7 +70,7 @@
       </section>
 
       <footer>
-        <p><b>Setup complete.</b> Each hexagon is numbered in reading order, from the top-left cell to the bottom-right cell.</p>
+        <p><b>Setup complete.</b> Generate fills the blank hexagons with a completed, valid Isosudoku.</p>
         <p class="quiet">GPL-3.0 · Includes the <a href="./THIRD_PARTY_NOTICES.md">sudokUI technique engine</a>.</p>
       </footer>
     </main>
