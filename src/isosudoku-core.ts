@@ -10,7 +10,19 @@ for (const unit of units) for (const a of unit) for (const b of unit) if (a !== 
 const all = 0x1ff;
 export type CandidateElimination = { cell: number; digit: number };
 export type TechniqueStep = { technique: string; placements: { cell: number; digit: number }[]; eliminations: CandidateElimination[]; sourceCells: number[]; targetCells: number[]; explanation: string; weight: number };
-export const TECHNIQUE_CATALOG = ["Snyder notation", "Naked Single", "Hidden Single", "Locked Candidates — Pointing", "Locked Candidates — Claiming", "Locked Candidates — Unit Intersection", "Naked Pair", "Naked Triple", "Naked Quad", "Hidden Pair", "Hidden Triple", "Hidden Quad", "XY-Wing", "XYZ-Wing", "W-Wing", "Backtracking"] as const;
+export type TechniqueRegistration = { name: string; priority: number; weight: number; implemented: boolean; walkthroughReady: boolean; active: boolean };
+export const TECHNIQUE_REGISTRY: TechniqueRegistration[] = [
+  { name: "Snyder notation", priority: 0, weight: 0, implemented: true, walkthroughReady: true, active: true },
+  { name: "Naked Single", priority: 10, weight: 10, implemented: true, walkthroughReady: true, active: true },
+  { name: "Hidden Single", priority: 20, weight: 20, implemented: true, walkthroughReady: true, active: true },
+  { name: "Locked Candidates", priority: 30, weight: 50, implemented: true, walkthroughReady: true, active: true },
+  { name: "Naked Subsets", priority: 40, weight: 60, implemented: true, walkthroughReady: true, active: true },
+  { name: "Hidden Subsets", priority: 50, weight: 70, implemented: true, walkthroughReady: true, active: true },
+  { name: "XY-Wing", priority: 60, weight: 160, implemented: true, walkthroughReady: true, active: true },
+  { name: "XYZ-Wing", priority: 70, weight: 180, implemented: true, walkthroughReady: true, active: true },
+  { name: "W-Wing", priority: 80, weight: 200, implemented: true, walkthroughReady: true, active: true },
+  { name: "Backtracking", priority: 999, weight: 1000, implemented: true, walkthroughReady: true, active: true },
+];
 export const ISOSUDOKU_UNITS = units.map((unit) => [...unit]);
 const base = "123456789895137246467829135374698521958241673216573498732915864641382957589764312".split("").map(Number);
 

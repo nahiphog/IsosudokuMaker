@@ -1,4 +1,5 @@
 import "./site-header.js";
+import { findHiddenSubset, findLockedCandidates, findNakedSubset, findWWing, findXYWing, findXYZWing } from "./isosudoku-core.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const board = document.querySelector<HTMLDivElement>("#board");
@@ -163,7 +164,10 @@ const walkLast = document.querySelector<HTMLButtonElement>("#walk-last");
 let currentCompleted: number[] | null = null;
 let currentDug: number[] | null = null;
 
-type WalkthroughStep = { board: number[]; notes: number[][]; removed: Set<string>; kind: string; description: string; placed?: number };
+type WalkthroughStep = { board: number[]; notes: number[][]; removed: Set<string>; kind: string; description: string; placed?: number; eliminations?: Set<string>; sourceCells?: number[]; targetCells?: number[]; highlightedUnits?: number[][]; appliesEliminations?: boolean };
+// This is intentionally not wired into the current renderer yet. It gives
+// elimination techniques a persistent state without changing existing walks.
+type CandidateState = { board: Uint8Array; eliminated: Set<string>; notes: number[][] };
 let walkthroughSteps: WalkthroughStep[] = [];
 let walkthroughStep = 0;
 
@@ -400,12 +404,26 @@ function findWalkthroughMove(state: Uint8Array, solution: number[]): { cell: num
   return bestCell === -1 ? null : { cell: bestCell, value: solution[bestCell], kind: "Backtracking" };
 }
 
-function candidateNotes(state: Uint8Array): number[][] {
+function candidateNotes(state: Uint8Array, eliminated = new Set<string>()): number[][] {
   return Array.from({ length: 81 }, (_, cell) => {
     if (state[cell]) return [];
     const mask = candidateMask(state, cell);
-    return Array.from({ length: 9 }, (_, index) => index + 1).filter((digit) => mask & (1 << (digit - 1)));
+    return Array.from({ length: 9 }, (_, index) => index + 1).filter((digit) => mask & (1 << (digit - 1)) && !eliminated.has(`${cell}:${digit}`));
   });
+}
+
+function createCandidateState(board: number[]): CandidateState {
+  const state = Uint8Array.from(board);
+  return { board: state, eliminated: new Set<string>(), notes: candidateNotes(state) };
+}
+
+function appendEliminationFrames(steps: WalkthroughStep[], candidateState: CandidateState, kind: string, eliminations: Set<string>, description: string, sourceCells: number[] = [], targetCells: number[] = []): void {
+  const pending = new Set([...eliminations].filter((item) => !candidateState.eliminated.has(item)));
+  if (!pending.size) return;
+  steps.push({ board: [...candidateState.board], notes: candidateState.notes, removed: pending, eliminations: pending, sourceCells, targetCells, kind, description, appliesEliminations: false });
+  pending.forEach((item) => candidateState.eliminated.add(item));
+  candidateState.notes = candidateNotes(candidateState.board, candidateState.eliminated);
+  steps.push({ board: [...candidateState.board], notes: candidateState.notes, removed: new Set(), eliminations: new Set(), sourceCells, targetCells, kind, description: `${kind}: the crossed-out Snyder candidates are now removed.`, appliesEliminations: true });
 }
 
 function removedNotes(before: number[][], after: number[][], state: Uint8Array): Set<string> {
@@ -418,10 +436,18 @@ function removedNotes(before: number[][], after: number[][], state: Uint8Array):
 }
 
 function buildWalkthrough(puzzle: number[], solution: number[]): WalkthroughStep[] {
-  const state = Uint8Array.from(puzzle);
-  let notes = candidateNotes(state);
+  const candidateState = createCandidateState(puzzle);
+  const state = candidateState.board;
+  let notes = candidateState.notes;
   const steps: WalkthroughStep[] = [{ board: [...state], notes, removed: new Set(), kind: "Snyder notation", description: "Step 0: Snyder notation is added in blue to every empty cell." }];
   while (state.some((value) => value === 0)) {
+    const deduction = [findLockedCandidates([...state]), findNakedSubset([...state]), findHiddenSubset([...state]), findXYWing([...state]), findXYZWing([...state]), findWWing([...state])].find((item) => item?.eliminations.some(({ cell, digit }) => !candidateState.eliminated.has(`${cell}:${digit}`)));
+    const pendingEliminations = new Set((deduction?.eliminations ?? []).map(({ cell, digit }) => `${cell}:${digit}`).filter((item) => !candidateState.eliminated.has(item)));
+    if (deduction && pendingEliminations.size) {
+      appendEliminationFrames(steps, candidateState, deduction.technique, pendingEliminations, deduction.explanation, deduction.sourceCells, deduction.targetCells);
+      notes = candidateState.notes;
+      continue;
+    }
     const move = findWalkthroughMove(state, solution);
     if (!move) throw new Error("Unable to construct a walkthrough.");
     const before = notes;
