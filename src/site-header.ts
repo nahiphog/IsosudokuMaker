@@ -26,3 +26,19 @@ openAbout?.addEventListener("click", () => dialog?.showModal());
 closeAbout?.addEventListener("click", () => dialog?.close());
 description?.addEventListener("click", () => { void copyDescription(); });
 dialog?.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+
+const nav = document.querySelector<HTMLElement>(".site-nav");
+const pages = [
+  ["Generate", "../"], ["Simulation", "../simulation/"], ["Custom Build", "../custom-build/"], ["Verify", "../verify/"], ["Techniques", "../techniques/"],
+] as const;
+if (nav) {
+  const isRoot = location.pathname === "/" || location.pathname.endsWith("/index.html");
+  nav.replaceChildren(...pages.map(([label, href]) => {
+    const link = document.createElement("a");
+    link.textContent = label;
+    link.href = isRoot ? href.replace(/^\.\.\//, "./") : href;
+    const active = location.pathname.includes(label === "Generate" ? "__root__" : label === "Custom Build" ? "custom-build" : label.toLowerCase());
+    if ((label === "Generate" && isRoot) || active) link.classList.add("active");
+    return link;
+  }));
+}
